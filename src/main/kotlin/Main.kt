@@ -6,8 +6,6 @@ import org.openqa.selenium.support.ui.ExpectedCondition
 import org.openqa.selenium.support.ui.ExpectedConditions
 import org.openqa.selenium.support.ui.WebDriverWait
 import java.time.Duration
-import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.*
@@ -63,27 +61,31 @@ fun WebDriver.login(loginInfo: LoginInfo) {
     waitFor(From.selector(Jibble.GOOGLE_LOGIN)) { ExpectedConditions.elementToBeClickable(it) }
         .click()
 
-    findElement(From.selector(Google.EMAIL_TEXT_FIELD))
+    waitFor(From.selector(Google.EMAIL_TEXT_FIELD))
         .sendKeys(loginInfo.email, Keys.ENTER)
 
     waitFor(From.selector(Google.PASSWORD_TEXT_FIELD)) { ExpectedConditions.elementToBeClickable(it) }
-        .click()
-
-    findElement(From.selector(Google.PASSWORD_TEXT_FIELD))
-        .sendKeys(loginInfo.password, Keys.ENTER)
+        .apply {
+            click()
+            sendKeys(loginInfo.password, Keys.ENTER)
+        }
 }
 
-
-fun WebDriver.baseEntry(interval: TimeInterval) {
-    waitFor(From.selector(Jibble.CLOCK_IN_BUTTON))
+fun WebDriver.addTimeEntry(
+    openDialogButton: Selectable,
+    inputField: Selectable,
+    confirmButton: Selectable,
+    at: LocalTime
+) {
+    waitFor(From.selector(openDialogButton))
         .click()
 
-    waitFor(From.selector(Jibble.CLOCK_IN_FIELD))
+    waitFor(From.selector(inputField))
         .click()
 
-    "${interval.start}".split(":").let {
+    "$at".split(":").let {
         it[0] to it[1]
-        findElement(From.selector(Jibble.CLOCK_IN_FIELD)).apply {
+        findElement(From.selector(inputField)).apply {
             sendKeys(Keys.SHIFT, Keys.TAB)
             sendKeys(it[0])
             sendKeys(Keys.TAB)
@@ -92,8 +94,22 @@ fun WebDriver.baseEntry(interval: TimeInterval) {
         }
     }
 
-    findElement(From.selector(Jibble.CLOCK_IN_CONFIRM))
+    findElement(From.selector(confirmButton))
         .click()
+}
+
+fun WebDriver.scheduleTimeEntry(
+    openDialogButton: Selectable,
+    inputField: Selectable,
+    confirmButton: Selectable,
+    at: LocalTime,
+) {
+    Timer()
+        .schedule(object : TimerTask() {
+            override fun run() {
+                addTimeEntry(openDialogButton, inputField, confirmButton, at)
+            }
+        }, LocalTime.now().until(at, ChronoUnit.MILLIS))
 }
 
 data class LoginInfo (
@@ -131,32 +147,35 @@ fun main(args: Array<String>) {
     driver.get("https://www.jibble.io/app")
 
     driver.login(loginInfo)
-    driver.baseEntry(schedule.base)
 
-    LocalTime.now().let { now ->
-        Timer()
-            .schedule(object : TimerTask() {
-                override fun run() {
-                    println("POLLOOOOO")
-                }
-            }, now.until(schedule.base.end, ChronoUnit.MILLIS))
+    driver.addTimeEntry(
+        Jibble.CLOCK_IN_BUTTON,
+        Jibble.CLOCK_IN_FIELD,
+        Jibble.CLOCK_IN_CONFIRM,
+        schedule.base.start
+    )
 
-        schedule.breaks?.forEach { (start, end) ->
-            Timer()
-                .schedule(object : TimerTask() {
-                    override fun run() {
-                        println("POLLOOOOO")
-                    }
-                }, now.until(start, ChronoUnit.MILLIS))
+    driver.scheduleTimeEntry(
+        Jibble.CLOCK_IN_BUTTON,
+        Jibble.CLOCK_IN_FIELD,
+        Jibble.CLOCK_IN_CONFIRM,
+        schedule.base.end
+    )
 
-            Timer()
-                .schedule(object : TimerTask() {
-                    override fun run() {
-                        println("POLLOOOOO")
-                    }
-                }, now.until(end, ChronoUnit.MILLIS))
-        }
+    schedule.breaks?.forEach { (start, end) ->
+        driver.scheduleTimeEntry(
+            Jibble.CLOCK_IN_BUTTON,
+            Jibble.CLOCK_IN_FIELD,
+            Jibble.CLOCK_IN_CONFIRM,
+            start
+        )
+        driver.scheduleTimeEntry(
+            Jibble.CLOCK_IN_BUTTON,
+            Jibble.CLOCK_IN_FIELD,
+            Jibble.CLOCK_IN_CONFIRM,
+            end
+        )
     }
 
-//    driver.quit()
+    driver.quit()
 }
