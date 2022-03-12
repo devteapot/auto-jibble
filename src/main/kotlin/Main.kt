@@ -9,6 +9,11 @@ import java.time.Duration
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.*
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import java.io.File
 
 const val MAX_WAIT = 30L
 
@@ -118,64 +123,68 @@ data class LoginInfo (
 )
 
 data class TimeInterval(
-    val start: LocalTime,
-    val end: LocalTime,
+    val from: LocalTime,
+    val to: LocalTime,
 )
 
 data class Schedule (
     val base: TimeInterval,
-    val breaks: Collection<TimeInterval>? = null
+    val breaks: Collection<TimeInterval>
 )
 
-// This may be useful sometime in the future if i need to execure js
-//    with(this as JavascriptExecutor) {
-//        executeScript("arguments[0].value='${interval}';", element)
-//        executeScript("console.log(arguments[0]);", element)
-//    }
+data class JibbleConfig (
+    val profile: LoginInfo,
+    val schedule: Schedule
+)
 
-fun main(args: Array<String>) {
-
-    val schedule = Schedule(
-        TimeInterval(
-            LocalTime.of(8, 0),
-            LocalTime.of(21, 47)
+fun loadConfig() =
+    jacksonObjectMapper().apply {
+        registerKotlinModule()
+        registerModule(JavaTimeModule())
+    }
+        .readValue<JibbleConfig>(
+            File(
+                ClassLoader
+                    .getSystemResource("jibbleConfig.json")
+                    .toURI()
+            )
+                .readText()
         )
-    )
 
+fun main() {
+    val (profile, schedule) = loadConfig()
     val driver = firefox()
 
     driver.get("https://www.jibble.io/app")
 
-    driver.login(loginInfo)
+    driver.login(profile)
 
     driver.addTimeEntry(
         Jibble.CLOCK_IN_BUTTON,
         Jibble.CLOCK_IN_FIELD,
         Jibble.CLOCK_IN_CONFIRM,
-        schedule.base.start
+        schedule.base.from
     )
 
     driver.scheduleTimeEntry(
         Jibble.CLOCK_IN_BUTTON,
         Jibble.CLOCK_IN_FIELD,
         Jibble.CLOCK_IN_CONFIRM,
-        schedule.base.end
+        schedule.base.to
     )
 
-    schedule.breaks?.forEach { (start, end) ->
+    schedule.breaks.forEach { (from, to) ->
         driver.scheduleTimeEntry(
             Jibble.CLOCK_IN_BUTTON,
             Jibble.CLOCK_IN_FIELD,
             Jibble.CLOCK_IN_CONFIRM,
-            start
+            from
         )
         driver.scheduleTimeEntry(
             Jibble.CLOCK_IN_BUTTON,
             Jibble.CLOCK_IN_FIELD,
             Jibble.CLOCK_IN_CONFIRM,
-            end
+            to
         )
     }
-
-    driver.quit()
 }
