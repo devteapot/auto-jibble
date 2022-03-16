@@ -1,26 +1,61 @@
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import io.github.bonigarcia.wdm.WebDriverManager
-import org.openqa.selenium.*
+import kotlinx.cli.ArgParser
+import kotlinx.cli.ArgType
+import kotlinx.cli.default
+import org.openqa.selenium.By
+import org.openqa.selenium.Keys
+import org.openqa.selenium.WebDriver
+import org.openqa.selenium.WebElement
+import org.openqa.selenium.chrome.ChromeDriver
+import org.openqa.selenium.chrome.ChromeOptions
 import org.openqa.selenium.firefox.FirefoxDriver
 import org.openqa.selenium.firefox.FirefoxOptions
 import org.openqa.selenium.support.ui.ExpectedCondition
 import org.openqa.selenium.support.ui.ExpectedConditions
 import org.openqa.selenium.support.ui.WebDriverWait
+import java.io.File
 import java.time.Duration
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.*
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
-import java.io.File
 
 const val MAX_WAIT = 30L
 
-fun firefox(options: FirefoxOptions = FirefoxOptions()): WebDriver {
+fun firefox(options: FirefoxOptions): WebDriver {
     WebDriverManager.firefoxdriver().setup()
     return FirefoxDriver(options)
 }
+
+fun chrome(options: ChromeOptions): WebDriver {
+    WebDriverManager.chromedriver().setup()
+    return ChromeDriver(options)
+}
+
+fun String?.toFirefoxOptions() =
+    this?.let { firefoxPath ->
+        FirefoxOptions().apply {
+            setBinary(firefoxPath)
+        }
+    } ?: FirefoxOptions()
+
+fun String?.toChromeOptions() =
+    this?.let { chromePath ->
+        ChromeOptions().apply {
+            setBinary(chromePath)
+        }
+    } ?: ChromeOptions()
+
+fun getDriver(options: Options): WebDriver =
+    options.let { (browser, browserPath) ->
+        when (browser) {
+            Browser.FIREFOX -> firefox(browserPath.toFirefoxOptions())
+            Browser.CHROME -> chrome(browserPath.toChromeOptions())
+        }
+    }
 
 fun WebDriver.waitFor(
     locator: By,
@@ -50,7 +85,7 @@ enum class Google(
     override val id: String? = null,
     override val xpath: String? = null,
     override val elementName: String? = null,
-): Selectable {
+) : Selectable {
     EMAIL_TEXT_FIELD(id = "identifierId"),
     PASSWORD_TEXT_FIELD(xpath = "//*[@id=\"password\"]/div[1]/div/div[1]/input")
 }
@@ -117,7 +152,7 @@ fun WebDriver.scheduleTimeEntry(
         }, LocalTime.now().until(at, ChronoUnit.MILLIS))
 }
 
-data class LoginInfo (
+data class LoginInfo(
     val email: String,
     val password: String,
 )
@@ -127,12 +162,12 @@ data class TimeInterval(
     val to: LocalTime,
 )
 
-data class Schedule (
+data class Schedule(
     val base: TimeInterval,
     val breaks: Collection<TimeInterval>
 )
 
-data class JibbleConfig (
+data class JibbleConfig(
     val profile: LoginInfo,
     val schedule: Schedule
 )
@@ -161,9 +196,40 @@ fun JibbleConfig.validate() =
         .takeIf { it }
         ?.let { this }
 
-fun main() {
+enum class Browser {
+    CHROME,
+    FIREFOX
+}
+
+data class Options(
+    val browser: Browser,
+    val browserPath: String?
+)
+
+fun Array<String>.parseOptions() =
+    with(ArgParser("Auto Jibble")) {
+        val browser by option(
+            ArgType.Choice<Browser>(),
+            shortName = "b",
+            fullName = "browser",
+            description = "Browser to be used"
+        )
+            .default(Browser.FIREFOX)
+
+        val browserPath by option(
+            ArgType.String,
+            shortName = "p",
+            fullName = "browser-path",
+            description = "Path to the browser executable"
+        )
+
+        parse(this@parseOptions)
+        Options(browser, browserPath)
+    }
+
+fun main(args: Array<String>) {
     val (profile, schedule) = loadConfig()
-    val driver = firefox()
+    val driver = getDriver(args.parseOptions())
 
     driver.get("https://www.jibble.io/app")
 

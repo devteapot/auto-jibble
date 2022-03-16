@@ -86,6 +86,11 @@
             <artifactId>jackson-datatype-jsr310</artifactId>
             <version>2.13.2</version>
         </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlinx</groupId>
+            <artifactId>kotlinx-cli-jvm</artifactId>
+            <version>0.3.4</version>
+        </dependency>
     </dependencies>
 
 </project>

@@ -14,14 +14,14 @@ Example of the file:
 {
   "profile": {
     "email": "your.email@something.com",
-    "password": "mightylord69",
-    "schedule": {
-      "base": {
-        "from": "08:00",
-        "to": "17:30"
-      },
-      "breaks": []
-    }
+    "password": "mightylord69"
+  },
+  "schedule": {
+    "base": {
+      "from": "08:00",
+      "to": "17:30"
+    },
+    "breaks": []
   }
 } 
 ```
