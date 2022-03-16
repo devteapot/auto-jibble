@@ -151,6 +151,16 @@ fun loadConfig() =
                 .readText()
         )
 
+fun JibbleConfig.validate() =
+    (listOf(schedule.base) + schedule.breaks)
+        .sortedBy { s -> s.from }
+        .zipWithNext()
+        .fold(true) { acc, (i1, i2) ->
+            i1.to <= i2.from && acc
+        }
+        .takeIf { it }
+        ?.let { this }
+
 fun main() {
     val (profile, schedule) = loadConfig()
     val driver = firefox()
